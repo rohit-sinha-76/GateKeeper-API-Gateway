@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  gateway:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - UPSTREAM_URL=http://mock_backend:8001
+      - ENV=production
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  mock_backend:
+    build: .
+    command: python mock_backend.py
+    ports:
+      - "8001:8001"
