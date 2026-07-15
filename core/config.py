@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Gateway/Proxy Settings
     GATEWAY_TIMEOUT_SECONDS: float = 10.0
+    UPSTREAM_URL: str = "http://localhost:8001"
 
     model_config = SettingsConfigDict(
         env_file=".env",
