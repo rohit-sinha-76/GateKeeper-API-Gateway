@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from utils.logger import get_logger
@@ -27,8 +28,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Middleware (registered before routes)
+# Middleware
 app.add_middleware(TracingMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Static files for the dashboard
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -44,6 +52,5 @@ async def health_check():
     return {"status": "ok", "version": "1.0.0"}
 
 
-# CRITICAL: Register monitor router ABOVE the catch-all proxy router
 app.include_router(monitor_router)
 app.include_router(proxy_router)

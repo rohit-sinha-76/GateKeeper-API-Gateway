@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     GATEWAY_TIMEOUT_SECONDS: float = 10.0
     UPSTREAM_URL: str = "http://localhost:8001"
 
+    # Security Headers & Middleware
+    CORS_ORIGINS: list[str] = ["*"]
+    ALLOWED_HOSTS: list[str] = ["*"]
+    RATE_LIMIT_WHITELIST_IPS: list[str] = ["127.0.0.1", "::1"]
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
