@@ -5,18 +5,17 @@ from core.config import settings
 async def check_rate_limit(identifier: str) -> tuple[bool, int, int]:
     """
     Fixed-window rate limiter using an atomic Redis Lua script.
-    Ensures backward compatibility with older Redis versions (pre-7.0)
-    while maintaining absolute atomicity.
-    
-    Returns:
-        (allowed, limit, remaining)
+    Includes IP whitelist bypass.
     """
+    client_ip = identifier.split(":")[0]
+    if client_ip in settings.RATE_LIMIT_WHITELIST_IPS:
+        return True, settings.RATE_LIMIT_MAX_REQUESTS, settings.RATE_LIMIT_MAX_REQUESTS
+
     redis = await get_redis()
     key = f"rate_limit:{identifier}"
     limit = settings.RATE_LIMIT_MAX_REQUESTS
     window = settings.RATE_LIMIT_WINDOW_SECONDS
 
-    # Lua script: INCR key and set EXPIRE only on the first hit (when count is 1)
     lua_script = """
     local current = redis.call('INCR', KEYS[1])
     if current == 1 then
@@ -25,10 +24,8 @@ async def check_rate_limit(identifier: str) -> tuple[bool, int, int]:
     return current
     """
 
-    # Execute the Lua script atomically
     count = await redis.eval(lua_script, 1, key, window)
 
-    # Track global counters for the dashboard
     async with redis.pipeline(transaction=True) as pipe:
         pipe.incr("global_hits")
         if count > limit:
