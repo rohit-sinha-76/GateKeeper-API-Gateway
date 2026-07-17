@@ -7,6 +7,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from core.config import settings
+from core.exceptions import GatewayException, gateway_exception_handler
 from utils.logger import get_logger
 from middleware.tracing import TracingMiddleware
 from services.redis_client import close_redis
@@ -29,6 +30,8 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan,
 )
+
+app.add_exception_handler(GatewayException, gateway_exception_handler)
 
 # Middleware
 app.add_middleware(TracingMiddleware)
