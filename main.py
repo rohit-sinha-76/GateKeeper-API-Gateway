@@ -12,6 +12,7 @@ from utils.logger import get_logger
 from middleware.tracing import TracingMiddleware
 from services.redis_client import close_redis
 from routers.monitor import router as monitor_router
+from routers.admin import router as admin_router
 from routers.proxy import router as proxy_router
 
 logger = get_logger(__name__)
@@ -60,4 +61,5 @@ async def health_check():
 
 
 app.include_router(monitor_router)
+app.include_router(admin_router)
 app.include_router(proxy_router)
