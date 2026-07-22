@@ -1,22 +1,48 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from core.config import settings
 
 
 @pytest.mark.asyncio
-async def test_admin_reset_rate_limit(client):
-    with patch("routers.admin.get_redis", new_callable=AsyncMock) as mock_redis:
-        mock_redis_inst = AsyncMock()
-        mock_redis_inst.delete.return_value = 1
-        mock_redis.return_value = mock_redis_inst
+async def test_admin_endpoints_reject_unauthenticated(client):
+    """Verify that unauthenticated access to admin endpoints returns 403 Forbidden."""
+    res1 = await client.post("/api/v1/admin/rate-limit/reset?identifier=test_id")
+    assert res1.status_code == 403
 
-        response = await client.post("/api/v1/admin/rate-limit/reset?identifier=127.0.0.1:key")
-        assert response.status_code == 200
-        assert response.json()["reset"] is True
+    res2 = await client.post("/api/v1/admin/circuit-breaker/reset?service_name=upstream")
+    assert res2.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_admin_reset_circuit_breaker(client):
-    with patch("routers.admin.reset_circuit", new_callable=AsyncMock) as mock_reset:
-        response = await client.post("/api/v1/admin/circuit-breaker/reset?service_name=upstream")
-        assert response.status_code == 200
-        assert response.json()["circuit"] == "CLOSED"
+async def test_admin_endpoints_reject_invalid_token(client):
+    """Verify that invalid admin credentials are rejected with 403."""
+    response = await client.post(
+        "/api/v1/admin/rate-limit/reset?identifier=test_id",
+        headers={settings.ADMIN_API_KEY_HEADER_NAME: "wrong-admin-token"},
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_reset_rate_limit_authenticated(client):
+    """Verify admin can reset rate limit with valid X-Admin-Key against real Redis."""
+    headers = {settings.ADMIN_API_KEY_HEADER_NAME: settings.ADMIN_API_KEY}
+    response = await client.post(
+        "/api/v1/admin/rate-limit/reset?identifier=127.0.0.1:key",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["identifier"] == "127.0.0.1:key"
+
+
+@pytest.mark.asyncio
+async def test_admin_reset_circuit_breaker_authenticated(client):
+    """Verify admin can reset circuit breaker with valid X-Admin-Key."""
+    headers = {settings.ADMIN_API_KEY_HEADER_NAME: settings.ADMIN_API_KEY}
+    response = await client.post(
+        "/api/v1/admin/circuit-breaker/reset?service_name=upstream",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["circuit"] == "CLOSED"
+

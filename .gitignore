@@ -16,3 +16,9 @@ venv/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+

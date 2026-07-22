@@ -11,6 +11,7 @@ from core.exceptions import GatewayException, gateway_exception_handler
 from utils.logger import get_logger
 from middleware.tracing import TracingMiddleware
 from services.redis_client import close_redis
+from services.proxy import get_http_client, close_http_client
 from routers.monitor import router as monitor_router
 from routers.admin import router as admin_router
 from routers.proxy import router as proxy_router
@@ -20,10 +21,14 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting GateKeeper API Gateway", extra={"env": settings.ENV})
+    logger.info("Initializing GateKeeper API Gateway connection pools", extra={"env": settings.ENV})
+    # Warm up shared connection pools
+    get_http_client()
     yield
+    # Graceful shutdown of persistent connection pools
+    await close_http_client()
     await close_redis()
-    logger.info("Shutting down GateKeeper API Gateway")
+    logger.info("GateKeeper API Gateway shut down successfully")
 
 
 app = FastAPI(
@@ -34,7 +39,7 @@ app = FastAPI(
 
 app.add_exception_handler(GatewayException, gateway_exception_handler)
 
-# Middleware
+# Middleware Pipeline
 app.add_middleware(TracingMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
@@ -42,7 +47,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -57,9 +62,10 @@ async def dashboard():
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "1.0.0", "project": settings.PROJECT_NAME}
 
 
 app.include_router(monitor_router)
 app.include_router(admin_router)
 app.include_router(proxy_router)
+
