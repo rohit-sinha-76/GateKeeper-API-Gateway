@@ -7,9 +7,10 @@ class Settings(BaseSettings):
     ENV: str = "development"
 
     # Redis Configuration
-    REDIS_URL: str = "redis://localhost:6379/0"
-    REDIS_SOCKET_TIMEOUT: float = 2.0
-    REDIS_CONNECT_TIMEOUT: float = 2.0
+    REDIS_URL: str = "redis://127.0.0.1:6379/0"
+    REDIS_SOCKET_TIMEOUT: float = 0.25
+
+    REDIS_CONNECT_TIMEOUT: float = 0.25
 
     # Security & Authentication
     API_KEY_HEADER_NAME: str = "X-API-Key"
@@ -27,8 +28,9 @@ class Settings(BaseSettings):
 
     # Gateway / HTTP Connection Pool Settings
     GATEWAY_TIMEOUT_SECONDS: float = 10.0
-    UPSTREAM_URL: str = "http://localhost:8001"
+    UPSTREAM_URL: str = "http://127.0.0.1:8001"
     HTTP_MAX_KEEPALIVE_CONNECTIONS: int = 100
+
     HTTP_MAX_CONNECTIONS: int = 500
     HTTP_KEEPALIVE_EXPIRY_SECONDS: float = 30.0
 
@@ -40,7 +42,8 @@ class Settings(BaseSettings):
     # Security Headers & Middleware
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", "test", "*"]
-    RATE_LIMIT_WHITELIST_IPS: list[str] = ["127.0.0.1", "::1"]
+    RATE_LIMIT_WHITELIST_IPS: list[str] = []
+
 
     model_config = SettingsConfigDict(
         env_file=".env",

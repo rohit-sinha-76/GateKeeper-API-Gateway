@@ -48,12 +48,19 @@ async def test_tiered_rate_limits_differentiate_free_vs_premium():
 
 @pytest.mark.asyncio
 async def test_whitelist_ip_bypasses_rate_limit():
-    """Verify whitelisted IPs (127.0.0.1) are never blocked regardless of request volume."""
-    identifier = "127.0.0.1:some_key"
-    for _ in range(100):
-        allowed, limit, remaining = await check_rate_limit(identifier, tier="free", client_ip="127.0.0.1")
-        assert allowed is True
-        assert remaining == limit
+    """Verify whitelisted IPs are never blocked regardless of request volume."""
+    whitelist_ip = "192.0.2.1"
+    settings.RATE_LIMIT_WHITELIST_IPS.append(whitelist_ip)
+    try:
+        identifier = f"{whitelist_ip}:some_key"
+        for _ in range(100):
+            allowed, limit, remaining = await check_rate_limit(identifier, tier="free", client_ip=whitelist_ip)
+            assert allowed is True
+            assert remaining == limit
+    finally:
+        if whitelist_ip in settings.RATE_LIMIT_WHITELIST_IPS:
+            settings.RATE_LIMIT_WHITELIST_IPS.remove(whitelist_ip)
+
 
 
 @pytest.mark.asyncio
