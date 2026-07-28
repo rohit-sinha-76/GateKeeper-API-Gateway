@@ -3,156 +3,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GateKeeper | API Monitor</title>
+    <title>GateKeeper | Live API Gateway Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Courier New', monospace;
-            background: #050a0e;
+            font-family: 'Courier New', monospace, -apple-system;
+            background: #060b10;
             color: #00ff88;
             min-height: 100vh;
         }
 
         header {
-            padding: 24px 40px;
+            padding: 20px 40px;
             border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 255, 136, 0.02);
+        }
+
+        .logo-group {
             display: flex;
             align-items: center;
             gap: 16px;
         }
 
         header h1 {
-            font-size: 1.5rem;
-            letter-spacing: 4px;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
             text-transform: uppercase;
-            text-shadow: 0 0 20px #00ff88;
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.6);
         }
 
-        .badge {
+        .badge-live {
             background: rgba(0, 255, 136, 0.1);
             border: 1px solid rgba(0, 255, 136, 0.4);
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 0.7rem;
             letter-spacing: 2px;
-            animation: pulse 2s infinite;
+            animation: pulse 1.5s infinite;
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.98); }
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            color: #00ff88;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: rgba(0, 255, 136, 0.25);
+            border-color: #00ff88;
+            box-shadow: 0 0 12px rgba(0, 255, 136, 0.4);
+        }
+
+        .btn.danger {
+            color: #ff4466;
+            border-color: rgba(255, 68, 102, 0.4);
+            background: rgba(255, 68, 102, 0.1);
+        }
+
+        .btn.danger:hover {
+            background: rgba(255, 68, 102, 0.25);
+            border-color: #ff4466;
+            box-shadow: 0 0 12px rgba(255, 68, 102, 0.4);
         }
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
-            padding: 32px 40px;
+            padding: 24px 40px;
         }
 
         .card {
             background: rgba(0, 255, 136, 0.03);
             border: 1px solid rgba(0, 255, 136, 0.15);
-            border-radius: 12px;
-            padding: 24px;
+            border-radius: 10px;
+            padding: 20px;
             backdrop-filter: blur(10px);
             transition: border-color 0.3s;
         }
 
-        .card:hover { border-color: rgba(0, 255, 136, 0.5); }
+        .card:hover { border-color: rgba(0, 255, 136, 0.4); }
 
         .card label {
-            font-size: 0.7rem;
-            letter-spacing: 3px;
-            color: rgba(0, 255, 136, 0.5);
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: rgba(0, 255, 136, 0.6);
             text-transform: uppercase;
+            display: block;
         }
 
         .card .value {
-            font-size: 3rem;
+            font-size: 2.4rem;
             font-weight: bold;
-            margin-top: 8px;
-            text-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
-            transition: all 0.3s;
+            margin-top: 6px;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+            transition: all 0.2s;
         }
 
-        .card .value.blocked { color: #ff4466; text-shadow: 0 0 30px rgba(255, 68, 102, 0.6); }
-        .card .value.allowed { color: #00ddff; text-shadow: 0 0 30px rgba(0, 221, 255, 0.6); }
+        .card .value.blocked { color: #ff4466; text-shadow: 0 0 20px rgba(255, 68, 102, 0.4); }
+        .card .value.allowed { color: #00ddff; text-shadow: 0 0 20px rgba(0, 221, 255, 0.4); }
+        .card .value.status-closed { color: #00ff88; font-size: 1.8rem; }
+        .card .value.status-open { color: #ff4466; font-size: 1.8rem; }
+        .card .value.status-half_open { color: #ffbb00; font-size: 1.8rem; }
 
         .charts {
             display: grid;
             grid-template-columns: 2fr 1fr;
             gap: 20px;
-            padding: 0 40px 40px;
+            padding: 0 40px 24px;
         }
 
         .chart-card {
             background: rgba(0, 255, 136, 0.03);
             border: 1px solid rgba(0, 255, 136, 0.15);
-            border-radius: 12px;
-            padding: 24px;
+            border-radius: 10px;
+            padding: 20px;
         }
 
         .chart-card h3 {
             font-size: 0.75rem;
-            letter-spacing: 3px;
-            color: rgba(0, 255, 136, 0.6);
-            margin-bottom: 20px;
+            letter-spacing: 2px;
+            color: rgba(0, 255, 136, 0.7);
+            margin-bottom: 16px;
             text-transform: uppercase;
         }
 
-        canvas { max-width: 100%; }
+        .log-section {
+            padding: 0 40px 30px;
+        }
+
+        .log-terminal {
+            background: #020508;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 0.75rem;
+            height: 160px;
+            overflow-y: auto;
+            color: rgba(0, 255, 136, 0.8);
+            line-height: 1.6;
+        }
+
+        .log-entry { margin-bottom: 4px; }
+        .log-entry.ok { color: #00ff88; }
+        .log-entry.blocked { color: #ff4466; }
+        .log-entry.admin { color: #00ddff; }
 
         .footer {
             text-align: center;
             padding: 16px;
             color: rgba(0, 255, 136, 0.3);
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             letter-spacing: 2px;
+            border-top: 1px solid rgba(0, 255, 136, 0.1);
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>GateKeeper</h1>
-        <span class="badge">LIVE</span>
+        <div class="logo-group">
+            <h1>GateKeeper</h1>
+            <span class="badge-live">LIVE TELEMETRY</span>
+        </div>
+        <div class="controls">
+            <button class="btn" onclick="sendBurst(1)">+1 Request</button>
+            <button class="btn" onclick="sendBurst(10)">+10 Burst</button>
+            <button class="btn danger" onclick="triggerRateLimit()">Trigger 429 Limit</button>
+            <button class="btn" onclick="resetAdmin()">Reset Quota</button>
+        </div>
     </header>
 
     <div class="grid">
         <div class="card">
-            <label>Total Requests</label>
-            <div class="value" id="hits">—</div>
+            <label>Total Traffic</label>
+            <div class="value" id="hits">0</div>
         </div>
         <div class="card">
-            <label>Blocked (429)</label>
-            <div class="value blocked" id="blocks">—</div>
+            <label>Allowed Requests</label>
+            <div class="value allowed" id="allowed">0</div>
         </div>
         <div class="card">
-            <label>Allowed</label>
-            <div class="value allowed" id="allowed">—</div>
+            <label>Blocked (HTTP 429)</label>
+            <div class="value blocked" id="blocks">0</div>
+        </div>
+        <div class="card">
+            <label>Circuit Breaker</label>
+            <div class="value status-closed" id="circuit">CLOSED</div>
         </div>
     </div>
 
     <div class="charts">
         <div class="chart-card">
-            <h3>Traffic Over Time</h3>
-            <canvas id="lineChart" height="120"></canvas>
+            <h3>Live Traffic Stream (Requests / Interval)</h3>
+            <canvas id="lineChart" height="110"></canvas>
         </div>
         <div class="chart-card">
-            <h3>Request Split</h3>
-            <canvas id="pieChart" height="120"></canvas>
+            <h3>Traffic Distribution</h3>
+            <canvas id="pieChart" height="110"></canvas>
         </div>
     </div>
 
-    <div class="footer">AUTO-REFRESH: 5s · GATEKEEPER API MONITOR</div>
+    <div class="log-section">
+        <div class="chart-card" style="padding: 16px 20px;">
+            <h3>Live Request Stream</h3>
+            <div class="log-terminal" id="logTerminal">
+                <div class="log-entry">[SYSTEM] GateKeeper Telemetry Engine Initialized. Polling /api/stats every 1000ms.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">GATEKEEPER API GATEWAY · DISTRIBUTED TELEMETRY STREAM · REFRESH 1000ms</div>
 
     <script>
         const MAX_POINTS = 20;
         const labels = [];
         const hitsHistory = [];
         const blocksHistory = [];
+        let lastTotalHits = null;
+        let lastTotalBlocks = null;
 
         const lineCtx = document.getElementById('lineChart').getContext('2d');
         const lineChart = new Chart(lineCtx, {
@@ -161,35 +251,35 @@
                 labels,
                 datasets: [
                     {
-                        label: 'Total Hits',
+                        label: 'Allowed Traffic',
                         data: hitsHistory,
                         borderColor: '#00ff88',
-                        backgroundColor: 'rgba(0,255,136,0.05)',
+                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
                         borderWidth: 2,
                         fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
+                        tension: 0.3,
+                        pointRadius: 2,
                     },
                     {
-                        label: 'Blocked',
+                        label: 'Blocked Traffic',
                         data: blocksHistory,
                         borderColor: '#ff4466',
-                        backgroundColor: 'rgba(255,68,102,0.05)',
+                        backgroundColor: 'rgba(255, 68, 102, 0.1)',
                         borderWidth: 2,
                         fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
+                        tension: 0.3,
+                        pointRadius: 2,
                     }
                 ]
             },
             options: {
                 responsive: true,
-                animation: { duration: 400 },
+                animation: { duration: 300 },
                 scales: {
                     x: { ticks: { color: 'rgba(0,255,136,0.4)', font: { size: 10 } }, grid: { color: 'rgba(0,255,136,0.05)' } },
-                    y: { ticks: { color: 'rgba(0,255,136,0.4)' }, grid: { color: 'rgba(0,255,136,0.05)' }, beginAtZero: true }
+                    y: { ticks: { color: 'rgba(0,255,136,0.4)' }, grid: { color: 'rgba(0,255,136,0.05)' }, beginAtZero: true, suggestedMax: 5 }
                 },
-                plugins: { legend: { labels: { color: 'rgba(0,255,136,0.6)', font: { size: 11 } } } }
+                plugins: { legend: { labels: { color: 'rgba(0,255,136,0.7)', font: { size: 11 } } } }
             }
         });
 
@@ -198,14 +288,28 @@
             type: 'doughnut',
             data: {
                 labels: ['Allowed', 'Blocked'],
-                datasets: [{ data: [0, 0], backgroundColor: ['rgba(0,221,255,0.7)', 'rgba(255,68,102,0.7)'], borderColor: ['#00ddff', '#ff4466'], borderWidth: 1 }]
+                datasets: [{
+                    data: [1, 0],
+                    backgroundColor: ['rgba(0,221,255,0.7)', 'rgba(255,68,102,0.7)'],
+                    borderColor: ['#00ddff', '#ff4466'],
+                    borderWidth: 1
+                }]
             },
             options: {
                 responsive: true,
-                animation: { duration: 400 },
-                plugins: { legend: { labels: { color: 'rgba(0,255,136,0.6)' } } }
+                animation: { duration: 300 },
+                plugins: { legend: { labels: { color: 'rgba(0,255,136,0.7)' } } }
             }
         });
+
+        function appendLog(msg, type = 'ok') {
+            const term = document.getElementById('logTerminal');
+            const el = document.createElement('div');
+            el.className = `log-entry ${type}`;
+            el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            term.appendChild(el);
+            term.scrollTop = term.scrollHeight;
+        }
 
         async function fetchAndUpdate() {
             try {
@@ -216,25 +320,92 @@
                 document.getElementById('blocks').textContent = data.total_blocks;
                 document.getElementById('allowed').textContent = data.allowed;
 
+                const circuitEl = document.getElementById('circuit');
+                circuitEl.textContent = data.circuit_breaker;
+                circuitEl.className = 'value status-' + data.circuit_breaker.toLowerCase();
+
+                let deltaHits = 0;
+                let deltaBlocks = 0;
+
+                if (lastTotalHits !== null) {
+                    deltaHits = Math.max(0, data.total_hits - lastTotalHits);
+                    deltaBlocks = Math.max(0, data.total_blocks - lastTotalBlocks);
+                }
+
+                lastTotalHits = data.total_hits;
+                lastTotalBlocks = data.total_blocks;
+
                 const now = new Date().toLocaleTimeString();
                 labels.push(now);
-                hitsHistory.push(data.total_hits);
-                blocksHistory.push(data.total_blocks);
+                hitsHistory.push(deltaHits);
+                blocksHistory.push(deltaBlocks);
 
                 if (labels.length > MAX_POINTS) {
-                    labels.shift(); hitsHistory.shift(); blocksHistory.shift();
+                    labels.shift();
+                    hitsHistory.shift();
+                    blocksHistory.shift();
                 }
 
                 lineChart.update();
-                pieChart.data.datasets[0].data = [data.allowed, data.total_blocks];
+                pieChart.data.datasets[0].data = [Math.max(1, data.allowed), data.total_blocks];
                 pieChart.update();
             } catch (e) {
                 console.error('Failed to fetch stats', e);
             }
         }
 
+        async function sendBurst(count) {
+            appendLog(`Dispatching ${count} request(s) with X-API-Key: free-key-abc123...`, 'ok');
+            for (let i = 0; i < count; i++) {
+                try {
+                    const res = await fetch('/api/v1/users', {
+                        headers: { 'X-API-Key': 'free-key-abc123' }
+                    });
+                    if (res.status === 200) {
+                        appendLog(`HTTP 200 OK - Forwarded to Upstream (/api/v1/users)`, 'ok');
+                    } else if (res.status === 429) {
+                        appendLog(`HTTP 429 Too Many Requests - Rate Limit Blocked!`, 'blocked');
+                    } else {
+                        appendLog(`HTTP ${res.status} Response received`, 'admin');
+                    }
+                } catch (err) {
+                    appendLog(`Network error: ${err.message}`, 'blocked');
+                }
+            }
+            fetchAndUpdate();
+        }
+
+        async function triggerRateLimit() {
+            appendLog(`Simulating load burst (65 rapid requests) to exceed Free Tier quota (60/min)...`, 'blocked');
+            for (let i = 0; i < 65; i++) {
+                fetch('/api/v1/users', { headers: { 'X-API-Key': 'free-key-abc123' } }).then(res => {
+                    if (res.status === 429) {
+                        appendLog(`HTTP 429 Rate Limit Exceeded on request #${i + 1}!`, 'blocked');
+                    }
+                });
+            }
+            setTimeout(fetchAndUpdate, 500);
+        }
+
+        async function resetAdmin() {
+            appendLog(`Executing Admin Reset with X-Admin-Key...`, 'admin');
+            try {
+                const r1 = await fetch('/api/v1/admin/circuit-breaker/reset', {
+                    method: 'POST',
+                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ service_name: 'upstream' })
+                });
+                const d1 = await r1.json();
+                appendLog(`Circuit Breaker Reset: ${JSON.stringify(d1)}`, 'admin');
+            } catch (e) {
+                appendLog(`Admin reset error: ${e.message}`, 'blocked');
+            }
+            fetchAndUpdate();
+        }
+
         fetchAndUpdate();
-        setInterval(fetchAndUpdate, 5000);
+        setInterval(fetchAndUpdate, 1000);
     </script>
 </body>
 </html>
+
