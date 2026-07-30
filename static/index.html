@@ -388,20 +388,31 @@
         }
 
         async function resetAdmin() {
-            appendLog(`Executing Admin Reset with X-Admin-Key...`, 'admin');
+            appendLog(`Executing Admin Reset (Clearing rate limits & resetting circuit state)...`, 'admin');
             try {
-                const r1 = await fetch('/api/v1/admin/circuit-breaker/reset', {
+                // 1. Reset all rate limit keys & clear block counter
+                const r1 = await fetch('/api/v1/admin/rate-limit/reset', {
+                    method: 'POST',
+                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: 'all' })
+                });
+                const d1 = await r1.json();
+                appendLog(`Rate Limit Quota Reset: ${JSON.stringify(d1)}`, 'admin');
+
+                // 2. Reset circuit breaker
+                const r2 = await fetch('/api/v1/admin/circuit-breaker/reset', {
                     method: 'POST',
                     headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
                     body: JSON.stringify({ service_name: 'upstream' })
                 });
-                const d1 = await r1.json();
-                appendLog(`Circuit Breaker Reset: ${JSON.stringify(d1)}`, 'admin');
+                const d2 = await r2.json();
+                appendLog(`Circuit Breaker Reset: ${JSON.stringify(d2)}`, 'admin');
             } catch (e) {
                 appendLog(`Admin reset error: ${e.message}`, 'blocked');
             }
-            fetchAndUpdate();
+            setTimeout(fetchAndUpdate, 300);
         }
+
 
         fetchAndUpdate();
         setInterval(fetchAndUpdate, 1000);
