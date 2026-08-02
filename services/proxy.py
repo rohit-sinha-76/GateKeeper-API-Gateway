@@ -1,7 +1,9 @@
+import time
 import httpx
 from fastapi import Request, Response
 from core.config import settings
 from utils.logger import get_logger
+from services.load_balancer import load_balancer
 from services.circuit_breaker import (
     CircuitState,
     get_circuit_state,
@@ -29,7 +31,6 @@ HOP_BY_HOP_HEADERS = {
     "host",
     "content-length",
 }
-
 
 
 def get_http_client() -> httpx.AsyncClient:
@@ -62,12 +63,17 @@ async def close_http_client() -> None:
 
 async def forward_request(request: Request) -> Response:
     """
-    Forward incoming HTTP request to upstream service via persistent connection pool,
-    enforcing circuit breaker state machine and hop-by-hop header hygiene.
+    Forward incoming HTTP request to an upstream server chosen by the Load Balancer
+    via persistent connection pool, enforcing circuit breaker state machine,
+    in-flight request accounting, monotonic latency tracking, and header hygiene.
     """
     path = request.url.path
     query = request.url.query
-    upstream_url = f"{settings.UPSTREAM_URL}{path}"
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    # Select upstream server snapshot for this request
+    server = load_balancer.select_server(client_ip=client_ip)
+    upstream_url = f"{server.url}{path}"
     if query:
         upstream_url = f"{upstream_url}?{query}"
 
@@ -77,7 +83,7 @@ async def forward_request(request: Request) -> Response:
     # 1. Circuit Breaker Evaluation
     circuit_state = await get_circuit_state(service_name)
     if circuit_state == CircuitState.OPEN:
-        logger.warning("Circuit breaker OPEN; fast-failing request", extra={"path": path, "request_id": request_id})
+        logger.warning("Circuit breaker OPEN; fast-failing request", extra={"path": path, "request_id": request_id, "server": server.id})
         return Response(
             content='{"detail":"Service Unavailable: Circuit Breaker OPEN"}',
             status_code=503,
@@ -89,14 +95,14 @@ async def forward_request(request: Request) -> Response:
         # In HALF_OPEN, only 1 concurrent probe request is allowed
         can_probe = await acquire_half_open_probe(service_name)
         if not can_probe:
-            logger.warning("Circuit Breaker HALF_OPEN: Probe in flight, shedding load", extra={"request_id": request_id})
+            logger.warning("Circuit Breaker HALF_OPEN: Probe in flight, shedding load", extra={"request_id": request_id, "server": server.id})
             return Response(
                 content='{"detail":"Service Unavailable: Downstream recovering, probe in flight"}',
                 status_code=503,
                 media_type="application/json",
                 headers={"X-Circuit-Breaker": "HALF_OPEN"},
             )
-        logger.info("Circuit Breaker HALF_OPEN: Canary probe admitted", extra={"request_id": request_id})
+        logger.info("Circuit Breaker HALF_OPEN: Canary probe admitted", extra={"request_id": request_id, "server": server.id})
 
     # 2. Prepare Request Headers (Filter hop-by-hop headers)
     headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
@@ -106,6 +112,13 @@ async def forward_request(request: Request) -> Response:
     body = await request.body()
     client = get_http_client()
 
+    # Track in-flight request lifecycle
+    load_balancer.record_request_start(server)
+    start_time = time.perf_counter()
+    status_code: int | None = None
+    is_timeout = False
+    is_connect_error = False
+
     try:
         upstream_response = await client.request(
             method=request.method,
@@ -113,35 +126,49 @@ async def forward_request(request: Request) -> Response:
             headers=headers,
             content=body,
         )
+        status_code = upstream_response.status_code
 
         # Classify upstream response status (500, 502, 503, 504 count as upstream failures)
-        if upstream_response.status_code in (500, 502, 503, 504):
+        if status_code in (500, 502, 503, 504):
             await record_failure(service_name)
         else:
             await record_success(service_name)
 
-
         # Filter hop-by-hop headers from upstream response
         resp_headers = {k: v for k, v in upstream_response.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
+        resp_headers["X-Upstream-Server"] = server.id
 
         logger.info(
             "Proxied request completed",
-            extra={"path": path, "status": upstream_response.status_code, "request_id": request_id},
+            extra={"path": path, "status": status_code, "request_id": request_id, "server": server.id},
         )
         return Response(
             content=upstream_response.content,
-            status_code=upstream_response.status_code,
+            status_code=status_code,
             headers=resp_headers,
             media_type=upstream_response.headers.get("content-type"),
         )
 
     except httpx.TimeoutException:
+        is_timeout = True
         await record_failure(service_name)
-        logger.error("Upstream gateway timeout", extra={"path": path, "request_id": request_id})
+        logger.error("Upstream gateway timeout", extra={"path": path, "request_id": request_id, "server": server.id})
         return Response(content='{"detail":"Gateway Timeout"}', status_code=504, media_type="application/json")
 
     except (httpx.ConnectError, httpx.NetworkError) as e:
+        is_connect_error = True
         await record_failure(service_name)
-        logger.error("Upstream connection error", extra={"path": path, "request_id": request_id, "error": str(e)})
+        logger.error("Upstream connection error", extra={"path": path, "request_id": request_id, "server": server.id, "error": str(e)})
         return Response(content='{"detail":"Bad Gateway"}', status_code=502, media_type="application/json")
+
+    finally:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        load_balancer.record_request_end(
+            server,
+            status_code=status_code,
+            duration_ms=duration_ms,
+            is_timeout=is_timeout,
+            is_connect_error=is_connect_error,
+        )
+
 

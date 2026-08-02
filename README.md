@@ -105,6 +105,39 @@ Upstream HTTP 500, 502, 503, and 504 status codes, along with connection errors 
 
 ---
 
+## Dynamic Multi-Server Load Balancing
+
+GateKeeper includes a pluggable, dynamic upstream load balancing engine supporting 1 to 4 upstream backend servers with request snapshot isolation and live per-server telemetry accounting.
+
+### Supported Algorithms
+
+1. **Round Robin (`round_robin`):** Distributes incoming requests sequentially across all active upstream servers ($1 \to 2 \to 3 \to 4 \to 1$).
+2. **Least Connections (`least_connections`):** Selects the active server with the lowest count of currently in-flight requests. In-flight counters increment upon request dispatch and strictly decrement in a `finally` block across all outcomes (success, 4xx, 5xx, timeout, connect error).
+3. **IP Hash (`ip_hash`):** Deterministically hashes client IP addresses to pin specific clients to designated upstream servers for session affinity.
+4. **Random (`random`):** Uniform stochastic distribution across currently active upstream servers.
+
+### Request Snapshot Isolation
+
+When a request begins execution, it captures a point-in-time snapshot of the selected upstream server. If an administrator dynamically reconfigures the active server count (e.g. from 4 servers to 2 servers) while requests are in-flight, in-flight requests continue executing against their chosen server to completion without being terminated or rerouted mid-stream.
+
+### Admin Configuration API
+
+Administrators can dynamically reconfigure the upstream pool and algorithm at runtime via authenticated endpoints:
+
+```bash
+# Update server count and algorithm dynamically
+curl -X POST http://localhost:8080/api/v1/admin/load-balancer/config \
+  -H "X-Admin-Key: admin-secret-gatekeeper-key" \
+  -H "Content-Type: application/json" \
+  -d '{"server_count": 2, "algorithm": "least_connections"}'
+
+# Reset cumulative per-server telemetry metrics
+curl -X POST http://localhost:8080/api/v1/admin/load-balancer/reset \
+  -H "X-Admin-Key: admin-secret-gatekeeper-key"
+```
+
+---
+
 ## Reliability & Failure Modes
 
 During Redis outages or partitions:
@@ -140,15 +173,18 @@ On Windows PowerShell:
 $env:USE_REAL_REDIS="1"; py -3.10 -m pytest -v
 ```
 
-The test suite contains 35 automated tests covering:
+The test suite contains 50 automated tests covering:
 - Constant-time authentication and tier resolution
 - Admin authorization and reset operations
 - Atomic Redis Lua rate limiting and boundary conditions
 - 3-State circuit breaker transitions and canary probe isolation
 - Upstream 500/502/504 failure handling and timeout classification
+- Round Robin, Least Connections, IP Hash, and Random load balancing algorithms
+- Dynamic scaling ($1 \to 4 \to 2 \to 3$) and mid-flight reconfiguration safety
 - High-concurrency atomicity (100 simultaneous coroutines)
 - Redis outage fail-open resilience
 - Hop-by-hop header stripping and correlation ID propagation
+
 
 ---
 

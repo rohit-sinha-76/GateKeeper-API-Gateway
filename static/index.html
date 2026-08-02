@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GateKeeper | Live API Gateway Monitor</title>
+    <title>GateKeeper | Dynamic Load Balancer & API Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Courier New', monospace, -apple-system;
+            font-family: 'Courier New', monospace, -apple-system, sans-serif;
             background: #060b10;
             color: #00ff88;
             min-height: 100vh;
         }
 
         header {
-            padding: 20px 40px;
+            padding: 16px 40px;
             border-bottom: 1px solid rgba(0, 255, 136, 0.2);
             display: flex;
             align-items: center;
@@ -31,10 +31,10 @@
         }
 
         header h1 {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             letter-spacing: 3px;
             text-transform: uppercase;
-            text-shadow: 0 0 15px rgba(0, 255, 136, 0.6);
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
         }
 
         .badge-live {
@@ -54,15 +54,16 @@
 
         .controls {
             display: flex;
-            gap: 10px;
+            gap: 8px;
+            align-items: center;
         }
 
         .btn {
             background: rgba(0, 255, 136, 0.1);
             border: 1px solid rgba(0, 255, 136, 0.4);
             color: #00ff88;
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 6px 14px;
+            border-radius: 4px;
             font-family: inherit;
             font-size: 0.75rem;
             letter-spacing: 1px;
@@ -73,7 +74,14 @@
         .btn:hover {
             background: rgba(0, 255, 136, 0.25);
             border-color: #00ff88;
-            box-shadow: 0 0 12px rgba(0, 255, 136, 0.4);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn.active {
+            background: #00ff88;
+            color: #060b10;
+            font-weight: bold;
+            box-shadow: 0 0 12px rgba(0, 255, 136, 0.6);
         }
 
         .btn.danger {
@@ -85,26 +93,64 @@
         .btn.danger:hover {
             background: rgba(255, 68, 102, 0.25);
             border-color: #ff4466;
-            box-shadow: 0 0 12px rgba(255, 68, 102, 0.4);
+            box-shadow: 0 0 10px rgba(255, 68, 102, 0.3);
         }
 
-        .grid {
+        .select-input {
+            background: #0b1520;
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            color: #00ff88;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.75rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .select-input option {
+            background: #060b10;
+            color: #00ff88;
+        }
+
+        .lb-bar {
+            background: rgba(0, 255, 136, 0.04);
+            border-bottom: 1px solid rgba(0, 255, 136, 0.15);
+            padding: 12px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .lb-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .lb-label {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            color: rgba(0, 255, 136, 0.6);
+            text-transform: uppercase;
+        }
+
+        .grid-summary {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            padding: 24px 40px;
+            gap: 16px;
+            padding: 20px 40px;
         }
 
         .card {
             background: rgba(0, 255, 136, 0.03);
             border: 1px solid rgba(0, 255, 136, 0.15);
-            border-radius: 10px;
-            padding: 20px;
+            border-radius: 8px;
+            padding: 16px;
             backdrop-filter: blur(10px);
-            transition: border-color 0.3s;
         }
-
-        .card:hover { border-color: rgba(0, 255, 136, 0.4); }
 
         .card label {
             font-size: 0.65rem;
@@ -115,65 +161,164 @@
         }
 
         .card .value {
-            font-size: 2.4rem;
+            font-size: 2rem;
             font-weight: bold;
-            margin-top: 6px;
-            text-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
-            transition: all 0.2s;
+            margin-top: 4px;
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
         }
 
-        .card .value.blocked { color: #ff4466; text-shadow: 0 0 20px rgba(255, 68, 102, 0.4); }
-        .card .value.allowed { color: #00ddff; text-shadow: 0 0 20px rgba(0, 221, 255, 0.4); }
-        .card .value.status-closed { color: #00ff88; font-size: 1.8rem; }
-        .card .value.status-open { color: #ff4466; font-size: 1.8rem; }
-        .card .value.status-half_open { color: #ffbb00; font-size: 1.8rem; }
+        .card .value.blocked { color: #ff4466; text-shadow: 0 0 15px rgba(255, 68, 102, 0.4); }
+        .card .value.allowed { color: #00ddff; text-shadow: 0 0 15px rgba(0, 221, 255, 0.4); }
+        .card .value.status-closed { color: #00ff88; font-size: 1.5rem; }
+        .card .value.status-open { color: #ff4466; font-size: 1.5rem; }
+        .card .value.status-half_open { color: #ffbb00; font-size: 1.5rem; }
+
+        .servers-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            padding: 0 40px 20px;
+        }
+
+        .server-card {
+            background: rgba(0, 255, 136, 0.02);
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s;
+        }
+
+        .server-card.active {
+            border-color: rgba(0, 255, 136, 0.4);
+            background: rgba(0, 255, 136, 0.04);
+        }
+
+        .server-card.inactive {
+            opacity: 0.4;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .server-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .server-title {
+            font-size: 0.85rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .server-badge {
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .server-badge.online {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.5);
+        }
+
+        .server-badge.offline {
+            background: rgba(255, 255, 255, 0.1);
+            color: #888;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .server-url {
+            font-size: 0.65rem;
+            color: rgba(0, 255, 136, 0.5);
+            margin-bottom: 12px;
+            word-break: break-all;
+        }
+
+        .progress-container {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 4px;
+            height: 6px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #00ff88;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .stats-table {
+            width: 100%;
+            font-size: 0.7rem;
+            border-collapse: collapse;
+        }
+
+        .stats-table td {
+            padding: 4px 0;
+            color: rgba(0, 255, 136, 0.7);
+        }
+
+        .stats-table td:last-child {
+            text-align: right;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stats-table td.blocked-val { color: #ff4466; }
 
         .charts {
             display: grid;
             grid-template-columns: 2fr 1fr;
-            gap: 20px;
-            padding: 0 40px 24px;
+            gap: 16px;
+            padding: 0 40px 20px;
         }
 
         .chart-card {
             background: rgba(0, 255, 136, 0.03);
             border: 1px solid rgba(0, 255, 136, 0.15);
-            border-radius: 10px;
-            padding: 20px;
+            border-radius: 8px;
+            padding: 16px;
         }
 
         .chart-card h3 {
             font-size: 0.75rem;
             letter-spacing: 2px;
             color: rgba(0, 255, 136, 0.7);
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             text-transform: uppercase;
         }
 
         .log-section {
-            padding: 0 40px 30px;
+            padding: 0 40px 24px;
         }
 
         .log-terminal {
             background: #020508;
             border: 1px solid rgba(0, 255, 136, 0.2);
-            border-radius: 8px;
-            padding: 16px;
-            font-size: 0.75rem;
-            height: 160px;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 0.7rem;
+            height: 140px;
             overflow-y: auto;
             color: rgba(0, 255, 136, 0.8);
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
-        .log-entry { margin-bottom: 4px; }
+        .log-entry { margin-bottom: 2px; }
         .log-entry.ok { color: #00ff88; }
         .log-entry.blocked { color: #ff4466; }
         .log-entry.admin { color: #00ddff; }
 
         .footer {
             text-align: center;
-            padding: 16px;
+            padding: 14px;
             color: rgba(0, 255, 136, 0.3);
             font-size: 0.65rem;
             letter-spacing: 2px;
@@ -191,17 +336,38 @@
             <button class="btn" onclick="sendBurst(1)">+1 Request</button>
             <button class="btn" onclick="sendBurst(10)">+10 Burst</button>
             <button class="btn danger" onclick="triggerRateLimit()">Trigger 429 Limit</button>
-            <button class="btn" onclick="resetAdmin()">Reset Quota</button>
+            <button class="btn" onclick="resetSystem()">Reset System</button>
         </div>
     </header>
 
-    <div class="grid">
+    <div class="lb-bar">
+        <div class="lb-section">
+            <span class="lb-label">Active Servers:</span>
+            <div id="serverButtons">
+                <button class="btn" onclick="setServerCount(1)" id="btnSrv1">1 Server</button>
+                <button class="btn" onclick="setServerCount(2)" id="btnSrv2">2 Servers</button>
+                <button class="btn" onclick="setServerCount(3)" id="btnSrv3">3 Servers</button>
+                <button class="btn" onclick="setServerCount(4)" id="btnSrv4">4 Servers</button>
+            </div>
+        </div>
+        <div class="lb-section">
+            <span class="lb-label">Load Balancing Algorithm:</span>
+            <select class="select-input" id="algoSelect" onchange="setAlgorithm(this.value)">
+                <option value="round_robin">Round Robin (Sequential)</option>
+                <option value="least_connections">Least Connections (Min In-Flight)</option>
+                <option value="ip_hash">IP Hash (Deterministic Sticky)</option>
+                <option value="random">Random (Uniform)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="grid-summary">
         <div class="card">
             <label>Total Traffic</label>
             <div class="value" id="hits">0</div>
         </div>
         <div class="card">
-            <label>Allowed Requests</label>
+            <label>Allowed (HTTP 2xx)</label>
             <div class="value allowed" id="allowed">0</div>
         </div>
         <div class="card">
@@ -214,19 +380,23 @@
         </div>
     </div>
 
+    <div class="servers-grid" id="serversGrid">
+        <!-- Dynamically rendered server cards -->
+    </div>
+
     <div class="charts">
         <div class="chart-card">
             <h3>Live Traffic Stream (Requests / Interval)</h3>
-            <canvas id="lineChart" height="110"></canvas>
+            <canvas id="lineChart" height="90"></canvas>
         </div>
         <div class="chart-card">
-            <h3>Traffic Distribution</h3>
-            <canvas id="pieChart" height="110"></canvas>
+            <h3>Cluster Load Distribution</h3>
+            <canvas id="serverBarChart" height="90"></canvas>
         </div>
     </div>
 
     <div class="log-section">
-        <div class="chart-card" style="padding: 16px 20px;">
+        <div class="chart-card" style="padding: 12px 16px;">
             <h3>Live Request Stream</h3>
             <div class="log-terminal" id="logTerminal">
                 <div class="log-entry">[SYSTEM] GateKeeper Telemetry Engine Initialized. Polling /api/stats every 1000ms.</div>
@@ -234,7 +404,7 @@
         </div>
     </div>
 
-    <div class="footer">GATEKEEPER API GATEWAY · DISTRIBUTED TELEMETRY STREAM · REFRESH 1000ms</div>
+    <div class="footer">GATEKEEPER API GATEWAY · DYNAMIC MULTI-SERVER LOAD BALANCER · REFRESH 1000ms</div>
 
     <script>
         const MAX_POINTS = 20;
@@ -283,22 +453,27 @@
             }
         });
 
-        const pieCtx = document.getElementById('pieChart').getContext('2d');
-        const pieChart = new Chart(pieCtx, {
-            type: 'doughnut',
+        const barCtx = document.getElementById('serverBarChart').getContext('2d');
+        const serverBarChart = new Chart(barCtx, {
+            type: 'bar',
             data: {
-                labels: ['Allowed', 'Blocked'],
+                labels: ['Server 1', 'Server 2', 'Server 3', 'Server 4'],
                 datasets: [{
-                    data: [1, 0],
-                    backgroundColor: ['rgba(0,221,255,0.7)', 'rgba(255,68,102,0.7)'],
-                    borderColor: ['#00ddff', '#ff4466'],
-                    borderWidth: 1
+                    label: 'Requests Handled',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#00ff88', '#00ddff', '#ffbb00', '#aa88ff'],
+                    borderWidth: 0,
+                    borderRadius: 4
                 }]
             },
             options: {
                 responsive: true,
                 animation: { duration: 300 },
-                plugins: { legend: { labels: { color: 'rgba(0,255,136,0.7)' } } }
+                scales: {
+                    x: { ticks: { color: 'rgba(0,255,136,0.7)', font: { size: 10 } }, grid: { display: false } },
+                    y: { ticks: { color: 'rgba(0,255,136,0.4)' }, grid: { color: 'rgba(0,255,136,0.05)' }, beginAtZero: true, suggestedMax: 5 }
+                },
+                plugins: { legend: { display: false } }
             }
         });
 
@@ -341,17 +516,113 @@
                 blocksHistory.push(deltaBlocks);
 
                 if (labels.length > MAX_POINTS) {
-                    labels.shift();
-                    hitsHistory.shift();
-                    blocksHistory.shift();
+                    labels.shift(); hitsHistory.shift(); blocksHistory.shift();
                 }
 
                 lineChart.update();
-                pieChart.data.datasets[0].data = [Math.max(1, data.allowed), data.total_blocks];
-                pieChart.update();
+
+                // Update Load Balancer UI
+                if (data.load_balancer) {
+                    const lb = data.load_balancer;
+                    updateLoadBalancerUI(lb);
+                }
             } catch (e) {
                 console.error('Failed to fetch stats', e);
             }
+        }
+
+        function updateLoadBalancerUI(lb) {
+            // Update Active Buttons
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.getElementById(`btnSrv${i}`);
+                if (btn) {
+                    if (i === lb.active_server_count) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                }
+            }
+
+            // Update Select if not active
+            const selectEl = document.getElementById('algoSelect');
+            if (selectEl && document.activeElement !== selectEl) {
+                selectEl.value = lb.algorithm;
+            }
+
+            // Calculate total routed requests across cluster
+            const totalRouted = lb.servers.reduce((sum, s) => sum + s.total_requests, 0);
+
+            // Render Server Cards
+            const grid = document.getElementById('serversGrid');
+            grid.innerHTML = '';
+
+            const barData = [];
+            const barLabels = [];
+
+            lb.servers.forEach(s => {
+                const pct = totalRouted > 0 ? ((s.total_requests / totalRouted) * 100).toFixed(1) : 0;
+                barLabels.push(s.name);
+                barData.push(s.total_requests);
+
+                const card = document.createElement('div');
+                card.className = `server-card ${s.is_active ? 'active' : 'inactive'}`;
+                card.innerHTML = `
+                    <div class="server-header">
+                        <span class="server-title">${s.name}</span>
+                        <span class="server-badge ${s.is_active ? 'online' : 'offline'}">${s.is_active ? 'ACTIVE' : 'DISABLED'}</span>
+                    </div>
+                    <div class="server-url">${s.url}</div>
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: ${pct}%;"></div>
+                    </div>
+                    <table class="stats-table">
+                        <tr><td>Traffic Share:</td><td>${pct}%</td></tr>
+                        <tr><td>Requests:</td><td>${s.total_requests}</td></tr>
+                        <tr><td>Accepted (2xx):</td><td>${s.successful_requests}</td></tr>
+                        <tr><td>Errors (4xx/5xx):</td><td class="${s.upstream_5xx + s.connection_errors > 0 ? 'blocked-val' : ''}">${s.upstream_4xx + s.upstream_5xx + s.connection_errors}</td></tr>
+                        <tr><td>In-Flight:</td><td>${s.active_requests}</td></tr>
+                        <tr><td>Avg Latency:</td><td>${s.avg_latency_ms} ms</td></tr>
+                    </table>
+                `;
+                grid.appendChild(card);
+            });
+
+            serverBarChart.data.labels = barLabels;
+            serverBarChart.data.datasets[0].data = barData;
+            serverBarChart.update();
+        }
+
+        async function setServerCount(count) {
+            appendLog(`Admin configuring active server count: ${count}...`, 'admin');
+            try {
+                const res = await fetch('/api/v1/admin/load-balancer/config', {
+                    method: 'POST',
+                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ server_count: count })
+                });
+                const data = await res.json();
+                appendLog(`Server Pool Updated: ${data.active_server_count} active node(s)`, 'admin');
+            } catch (err) {
+                appendLog(`Config error: ${err.message}`, 'blocked');
+            }
+            fetchAndUpdate();
+        }
+
+        async function setAlgorithm(algo) {
+            appendLog(`Admin configuring algorithm: ${algo}...`, 'admin');
+            try {
+                const res = await fetch('/api/v1/admin/load-balancer/config', {
+                    method: 'POST',
+                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ algorithm: algo })
+                });
+                const data = await res.json();
+                appendLog(`Algorithm Updated: ${data.algorithm}`, 'admin');
+            } catch (err) {
+                appendLog(`Config error: ${err.message}`, 'blocked');
+            }
+            fetchAndUpdate();
         }
 
         async function sendBurst(count) {
@@ -361,12 +632,14 @@
                     const res = await fetch('/api/v1/users', {
                         headers: { 'X-API-Key': 'free-key-abc123' }
                     });
+                    const srv = res.headers.get('X-Upstream-Server') || 'unknown';
+                    const dur = res.headers.get('X-Process-Time') || '';
                     if (res.status === 200) {
-                        appendLog(`HTTP 200 OK - Forwarded to Upstream (/api/v1/users)`, 'ok');
+                        appendLog(`[${srv.toUpperCase()}] HTTP 200 OK - Forwarded (${dur})`, 'ok');
                     } else if (res.status === 429) {
-                        appendLog(`HTTP 429 Too Many Requests - Rate Limit Blocked!`, 'blocked');
+                        appendLog(`HTTP 429 Too Many Requests - Gateway Rate Limit Blocked!`, 'blocked');
                     } else {
-                        appendLog(`HTTP ${res.status} Response received`, 'admin');
+                        appendLog(`[${srv.toUpperCase()}] HTTP ${res.status} Response received`, 'admin');
                     }
                 } catch (err) {
                     appendLog(`Network error: ${err.message}`, 'blocked');
@@ -387,36 +660,38 @@
             setTimeout(fetchAndUpdate, 500);
         }
 
-        async function resetAdmin() {
-            appendLog(`Executing Admin Reset (Clearing rate limits & resetting circuit state)...`, 'admin');
+        async function resetSystem() {
+            appendLog(`Executing Admin Reset (Rate Limits, Circuit Breaker & Server Telemetry)...`, 'admin');
             try {
-                // 1. Reset all rate limit keys & clear block counter
-                const r1 = await fetch('/api/v1/admin/rate-limit/reset', {
+                // 1. Reset rate limit keys
+                await fetch('/api/v1/admin/rate-limit/reset', {
                     method: 'POST',
                     headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
                     body: JSON.stringify({ identifier: 'all' })
                 });
-                const d1 = await r1.json();
-                appendLog(`Rate Limit Quota Reset: ${JSON.stringify(d1)}`, 'admin');
 
                 // 2. Reset circuit breaker
-                const r2 = await fetch('/api/v1/admin/circuit-breaker/reset', {
+                await fetch('/api/v1/admin/circuit-breaker/reset', {
                     method: 'POST',
                     headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
                     body: JSON.stringify({ service_name: 'upstream' })
                 });
-                const d2 = await r2.json();
-                appendLog(`Circuit Breaker Reset: ${JSON.stringify(d2)}`, 'admin');
+
+                // 3. Reset load balancer telemetry
+                await fetch('/api/v1/admin/load-balancer/reset', {
+                    method: 'POST',
+                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key' }
+                });
+
+                appendLog(`System State Fully Reset to Fresh Baseline.`, 'admin');
             } catch (e) {
                 appendLog(`Admin reset error: ${e.message}`, 'blocked');
             }
             setTimeout(fetchAndUpdate, 300);
         }
 
-
         fetchAndUpdate();
         setInterval(fetchAndUpdate, 1000);
     </script>
 </body>
 </html>
-

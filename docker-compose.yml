@@ -18,6 +18,12 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - UPSTREAM_URL=http://mock_backend:8001
+      - UPSTREAM_SERVER_1_URL=http://mock_backend:8001
+      - UPSTREAM_SERVER_2_URL=http://mock_backend:8002
+      - UPSTREAM_SERVER_3_URL=http://mock_backend:8003
+      - UPSTREAM_SERVER_4_URL=http://mock_backend:8004
+      - DEFAULT_LOAD_BALANCER_ALGORITHM=round_robin
+      - DEFAULT_ACTIVE_SERVER_COUNT=4
       - ENV=production
     depends_on:
       redis:
@@ -28,10 +34,14 @@ services:
     command: python mock_backend.py
     expose:
       - "8001"
+      - "8002"
+      - "8003"
+      - "8004"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/v1/users')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 5s
       timeout: 3s
       retries: 3
+
 
 

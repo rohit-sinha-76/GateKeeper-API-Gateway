@@ -29,10 +29,16 @@ class Settings(BaseSettings):
     # Gateway / HTTP Connection Pool Settings
     GATEWAY_TIMEOUT_SECONDS: float = 10.0
     UPSTREAM_URL: str = "http://127.0.0.1:8001"
+    UPSTREAM_SERVER_1_URL: str = "http://127.0.0.1:8001"
+    UPSTREAM_SERVER_2_URL: str = "http://127.0.0.1:8002"
+    UPSTREAM_SERVER_3_URL: str = "http://127.0.0.1:8003"
+    UPSTREAM_SERVER_4_URL: str = "http://127.0.0.1:8004"
+    DEFAULT_LOAD_BALANCER_ALGORITHM: str = "round_robin"
+    DEFAULT_ACTIVE_SERVER_COUNT: int = 4
     HTTP_MAX_KEEPALIVE_CONNECTIONS: int = 100
-
     HTTP_MAX_CONNECTIONS: int = 500
     HTTP_KEEPALIVE_EXPIRY_SECONDS: float = 30.0
+
 
     # Circuit Breaker Settings
     CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 5
