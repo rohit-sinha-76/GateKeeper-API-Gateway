@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 # Shared global HTTP client pool for the gateway
 _http_client: httpx.AsyncClient | None = None
 
-# RFC 7230 Hop-by-hop headers that must NOT be forwarded by a proxy
+# RFC 7230 Hop-by-hop & payload-encoding headers stripped by proxy
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -30,7 +30,9 @@ HOP_BY_HOP_HEADERS = {
     "upgrade",
     "host",
     "content-length",
+    "content-encoding",
 }
+
 
 
 def get_http_client() -> httpx.AsyncClient:
