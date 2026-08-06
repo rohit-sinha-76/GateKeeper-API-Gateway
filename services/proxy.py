@@ -73,19 +73,13 @@ async def forward_request(request: Request) -> Response:
     query = request.url.query
     client_ip = request.client.host if request.client else "127.0.0.1"
 
-    # Select upstream server snapshot for this request
-    server = load_balancer.select_server(client_ip=client_ip)
-    upstream_url = f"{server.url}{path}"
-    if query:
-        upstream_url = f"{upstream_url}?{query}"
-
     request_id = getattr(request.state, "request_id", "unknown")
     service_name = "upstream"
 
-    # 1. Circuit Breaker Evaluation
+    # 1. Circuit Breaker Evaluation (before server selection so RR index isn't wasted)
     circuit_state = await get_circuit_state(service_name)
     if circuit_state == CircuitState.OPEN:
-        logger.warning("Circuit breaker OPEN; fast-failing request", extra={"path": path, "request_id": request_id, "server": server.id})
+        logger.warning("Circuit breaker OPEN; fast-failing request", extra={"path": path, "request_id": request_id})
         return Response(
             content='{"detail":"Service Unavailable: Circuit Breaker OPEN"}',
             status_code=503,
@@ -97,20 +91,27 @@ async def forward_request(request: Request) -> Response:
         # In HALF_OPEN, only 1 concurrent probe request is allowed
         can_probe = await acquire_half_open_probe(service_name)
         if not can_probe:
-            logger.warning("Circuit Breaker HALF_OPEN: Probe in flight, shedding load", extra={"request_id": request_id, "server": server.id})
+            logger.warning("Circuit Breaker HALF_OPEN: Probe in flight, shedding load", extra={"request_id": request_id})
             return Response(
                 content='{"detail":"Service Unavailable: Downstream recovering, probe in flight"}',
                 status_code=503,
                 media_type="application/json",
                 headers={"X-Circuit-Breaker": "HALF_OPEN"},
             )
-        logger.info("Circuit Breaker HALF_OPEN: Canary probe admitted", extra={"request_id": request_id, "server": server.id})
+        logger.info("Circuit Breaker HALF_OPEN: Canary probe admitted", extra={"request_id": request_id})
 
-    # 2. Prepare Request Headers (Filter hop-by-hop headers)
+    # 2. Select upstream server snapshot AFTER circuit check so RR index is only advanced
+    #    when a request will actually be forwarded to an upstream server.
+    server = load_balancer.select_server(client_ip=client_ip)
+    upstream_url = f"{server.url}{path}"
+    if query:
+        upstream_url = f"{upstream_url}?{query}"
+
+    # 3. Prepare Request Headers (Filter hop-by-hop headers)
     headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
     headers["X-Request-ID"] = request_id
 
-    # 3. Read Body & Forward via Pooled Client
+    # 4. Read Body & Forward via Pooled Client
     body = await request.body()
     client = get_http_client()
 
@@ -120,6 +121,7 @@ async def forward_request(request: Request) -> Response:
     status_code: int | None = None
     is_timeout = False
     is_connect_error = False
+
 
     try:
         upstream_response = await client.request(

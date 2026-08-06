@@ -305,3 +305,50 @@ async def test_in_flight_request_completes_when_pool_scaled_down(lb):
     new_selections = [lb.select_server().id for _ in range(10)]
     assert "server-3" not in new_selections
 
+
+def test_round_robin_index_resets_after_server_count_change(lb):
+    """
+    Regression: set_active_server_count must reset the RR index to 0 so that the
+    first request after a pool resize always starts from server-1, not an arbitrary
+    offset accumulated in the previous pool size.
+    """
+    lb.set_algorithm(LoadBalancingAlgorithm.ROUND_ROBIN)
+    lb.set_active_server_count(4)
+
+    # Advance the index 3 steps
+    for _ in range(3):
+        lb.select_server()
+    assert lb._rr_index == 3
+
+    # Scale down - index must be reset to 0
+    lb.set_active_server_count(2)
+    assert lb._rr_index == 0, "RR index must reset to 0 after set_active_server_count"
+
+    # First request after resize must hit server-1
+    first = lb.select_server()
+    assert first.id == "server-1", f"Expected server-1 after resize, got {first.id}"
+
+
+def test_round_robin_server_eligibility_restored_after_scale_up(lb):
+    """
+    Regression: after scaling 4->2->4, server-3 and server-4 must become selectable
+    again and RR must cycle cleanly through all four nodes.
+    """
+    lb.set_algorithm(LoadBalancingAlgorithm.ROUND_ROBIN)
+    lb.set_active_server_count(4)
+    lb.set_active_server_count(2)
+
+    # Confirm server-3 and server-4 are inactive
+    assert all(not s.is_active for s in lb.servers if s.id in ("server-3", "server-4"))
+
+    # Scale back to 4
+    lb.set_active_server_count(4)
+
+    # Confirm all four are active
+    assert all(s.is_active for s in lb.servers)
+
+    # RR should cycle all four
+    sequence = [lb.select_server().id for _ in range(4)]
+    assert set(sequence) == {"server-1", "server-2", "server-3", "server-4"}
+
+

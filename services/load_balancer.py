@@ -7,7 +7,7 @@ import enum
 import hashlib
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from core.config import settings
 from utils.logger import get_logger
@@ -108,10 +108,16 @@ class LoadBalancer:
         return [s for s in self._servers if s.is_active]
 
     def set_active_server_count(self, count: int) -> None:
-        """Dynamically configure the active server count (1 to 4)."""
+        """Dynamically configure the active server count (1 to 4).
+
+        Resets the Round Robin index to 0 so that after a pool-resize
+        event the next request starts fresh from server-1 rather than
+        resuming from an arbitrary offset accumulated in the old pool.
+        """
         if not (1 <= count <= len(self._servers)):
             raise ValueError(f"Server count must be between 1 and {len(self._servers)}, got {count}")
         self._active_server_count = count
+        self._rr_index = 0
         self._sync_active_states()
         logger.info("Load balancer active server count updated", extra={"active_servers": count})
 

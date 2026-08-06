@@ -28,6 +28,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      mock_backend:
+        condition: service_healthy
 
   mock_backend:
     build: .

@@ -414,6 +414,12 @@
         let lastTotalHits = null;
         let lastTotalBlocks = null;
 
+        // NOTE: This dashboard is intended for local/internal use only.
+        // The admin key is readable from browser devtools. Do not expose
+        // this page on a public network without additional access controls.
+        const ADMIN_KEY = 'admin-secret-gatekeeper-key';
+
+
         const lineCtx = document.getElementById('lineChart').getContext('2d');
         const lineChart = new Chart(lineCtx, {
             type: 'line',
@@ -598,7 +604,7 @@
             try {
                 const res = await fetch('/api/v1/admin/load-balancer/config', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ server_count: count })
                 });
                 const data = await res.json();
@@ -614,7 +620,7 @@
             try {
                 const res = await fetch('/api/v1/admin/load-balancer/config', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ algorithm: algo })
                 });
                 const data = await res.json();
@@ -666,21 +672,21 @@
                 // 1. Reset rate limit keys
                 await fetch('/api/v1/admin/rate-limit/reset', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ identifier: 'all' })
                 });
 
                 // 2. Reset circuit breaker
                 await fetch('/api/v1/admin/circuit-breaker/reset', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key', 'Content-Type': 'application/json' },
+                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ service_name: 'upstream' })
                 });
 
                 // 3. Reset load balancer telemetry
                 await fetch('/api/v1/admin/load-balancer/reset', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': 'admin-secret-gatekeeper-key' }
+                    headers: { 'X-Admin-Key': ADMIN_KEY }
                 });
 
                 appendLog(`System State Fully Reset to Fresh Baseline.`, 'admin');
