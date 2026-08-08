@@ -47,6 +47,29 @@
             animation: pulse 1.5s infinite;
         }
 
+        .badge-admin {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            letter-spacing: 1px;
+            font-weight: bold;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .badge-admin.unlocked {
+            background: rgba(0, 255, 136, 0.15);
+            color: #00ff88;
+            border-color: rgba(0, 255, 136, 0.5);
+        }
+
+        .badge-admin.locked {
+            background: rgba(255, 187, 0, 0.15);
+            color: #ffbb00;
+            border-color: rgba(255, 187, 0, 0.4);
+        }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.6; transform: scale(0.98); }
@@ -316,6 +339,63 @@
         .log-entry.blocked { color: #ff4466; }
         .log-entry.admin { color: #00ddff; }
 
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show { display: flex; }
+
+        .modal-content {
+            background: #0a131c;
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            border-radius: 8px;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .modal-content h2 {
+            font-size: 1rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            color: #00ff88;
+        }
+
+        .modal-content p {
+            font-size: 0.75rem;
+            color: rgba(0, 255, 136, 0.7);
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 8px 12px;
+            background: #060b10;
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            border-radius: 4px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 0.8rem;
+            margin-bottom: 16px;
+            outline: none;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
         .footer {
             text-align: center;
             padding: 14px;
@@ -331,6 +411,7 @@
         <div class="logo-group">
             <h1>GateKeeper</h1>
             <span class="badge-live">LIVE TELEMETRY</span>
+            <span class="badge-admin locked" id="adminBadge" onclick="toggleAdminAuthModal()">ADMIN: LOCKED</span>
         </div>
         <div class="controls">
             <button class="btn" onclick="sendBurst(1)">+1 Request</button>
@@ -404,6 +485,19 @@
         </div>
     </div>
 
+    <!-- Admin Authentication Modal -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal-content">
+            <h2>Admin Authorization</h2>
+            <p>Enter administrator credentials to unlock server configuration and administrative reset controls.</p>
+            <input type="password" id="modalAdminKey" class="modal-input" placeholder="Admin Key" onkeydown="if(event.key==='Enter') submitAdminLogin()">
+            <div class="modal-actions">
+                <button class="btn" onclick="closeAuthModal()">Cancel</button>
+                <button class="btn active" onclick="submitAdminLogin()">Authenticate</button>
+            </div>
+        </div>
+    </div>
+
     <div class="footer">GATEKEEPER API GATEWAY · DYNAMIC MULTI-SERVER LOAD BALANCER · REFRESH 1000ms</div>
 
     <script>
@@ -413,12 +507,8 @@
         const blocksHistory = [];
         let lastTotalHits = null;
         let lastTotalBlocks = null;
-
-        // NOTE: This dashboard is intended for local/internal use only.
-        // The admin key is readable from browser devtools. Do not expose
-        // this page on a public network without additional access controls.
-        const ADMIN_KEY = 'admin-secret-gatekeeper-key';
-
+        let isUserAdmin = false;
+        let pendingAdminAction = null;
 
         const lineCtx = document.getElementById('lineChart').getContext('2d');
         const lineChart = new Chart(lineCtx, {
@@ -492,6 +582,82 @@
             term.scrollTop = term.scrollHeight;
         }
 
+        async function checkAdminAuthStatus() {
+            try {
+                const res = await fetch('/api/v1/admin/auth/status');
+                const data = await res.json();
+                isUserAdmin = data.authenticated;
+                const badge = document.getElementById('adminBadge');
+                if (isUserAdmin) {
+                    badge.textContent = 'ADMIN: UNLOCKED';
+                    badge.className = 'badge-admin unlocked';
+                } else {
+                    badge.textContent = 'ADMIN: LOCKED';
+                    badge.className = 'badge-admin locked';
+                }
+            } catch (e) {
+                console.error('Failed to check admin status', e);
+            }
+        }
+
+        function toggleAdminAuthModal(queuedAction = null) {
+            if (isUserAdmin && !queuedAction) {
+                // If unlocked, ask if user wants to log out
+                if (confirm('Admin controls are currently unlocked. Do you want to lock/logout?')) {
+                    logoutAdmin();
+                }
+                return;
+            }
+            pendingAdminAction = queuedAction;
+            document.getElementById('modalAdminKey').value = '';
+            document.getElementById('authModal').classList.add('show');
+            document.getElementById('modalAdminKey').focus();
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.remove('show');
+            pendingAdminAction = null;
+        }
+
+        async function submitAdminLogin() {
+            const key = document.getElementById('modalAdminKey').value.trim();
+            if (!key) return;
+
+            try {
+                const res = await fetch('/api/v1/admin/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ admin_key: key })
+                });
+
+                if (res.ok) {
+                    appendLog('Admin session authenticated successfully.', 'admin');
+                    closeAuthModal();
+                    await checkAdminAuthStatus();
+                    if (pendingAdminAction) {
+                        const action = pendingAdminAction;
+                        pendingAdminAction = null;
+                        action();
+                    }
+                } else {
+                    appendLog('Authentication failed: Invalid admin credentials.', 'blocked');
+                    alert('Invalid administrator credentials.');
+                }
+            } catch (err) {
+                appendLog(`Login error: ${err.message}`, 'blocked');
+            }
+        }
+
+        async function logoutAdmin() {
+            try {
+                await fetch('/api/v1/admin/auth/logout', { method: 'POST' });
+                appendLog('Admin session logged out.', 'admin');
+                await checkAdminAuthStatus();
+            } catch (err) {
+                appendLog(`Logout error: ${err.message}`, 'blocked');
+            }
+        }
+
         async function fetchAndUpdate() {
             try {
                 const res = await fetch('/api/stats');
@@ -538,7 +704,6 @@
         }
 
         function updateLoadBalancerUI(lb) {
-            // Update Active Buttons
             for (let i = 1; i <= 4; i++) {
                 const btn = document.getElementById(`btnSrv${i}`);
                 if (btn) {
@@ -550,16 +715,12 @@
                 }
             }
 
-            // Update Select if not active
             const selectEl = document.getElementById('algoSelect');
             if (selectEl && document.activeElement !== selectEl) {
                 selectEl.value = lb.algorithm;
             }
 
-            // Calculate total routed requests across cluster
             const totalRouted = lb.servers.reduce((sum, s) => sum + s.total_requests, 0);
-
-            // Render Server Cards
             const grid = document.getElementById('serversGrid');
             grid.innerHTML = '';
 
@@ -604,9 +765,14 @@
             try {
                 const res = await fetch('/api/v1/admin/load-balancer/config', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ server_count: count })
                 });
+                if (res.status === 403 || res.status === 401) {
+                    appendLog('Admin authentication required.', 'blocked');
+                    toggleAdminAuthModal(() => setServerCount(count));
+                    return;
+                }
                 const data = await res.json();
                 appendLog(`Server Pool Updated: ${data.active_server_count} active node(s)`, 'admin');
             } catch (err) {
@@ -620,9 +786,14 @@
             try {
                 const res = await fetch('/api/v1/admin/load-balancer/config', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ algorithm: algo })
                 });
+                if (res.status === 403 || res.status === 401) {
+                    appendLog('Admin authentication required.', 'blocked');
+                    toggleAdminAuthModal(() => setAlgorithm(algo));
+                    return;
+                }
                 const data = await res.json();
                 appendLog(`Algorithm Updated: ${data.algorithm}`, 'admin');
             } catch (err) {
@@ -670,24 +841,27 @@
             appendLog(`Executing Admin Reset (Rate Limits, Circuit Breaker & Server Telemetry)...`, 'admin');
             try {
                 // 1. Reset rate limit keys
-                await fetch('/api/v1/admin/rate-limit/reset', {
+                const r1 = await fetch('/api/v1/admin/rate-limit/reset', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ identifier: 'all' })
                 });
+
+                if (r1.status === 403 || r1.status === 401) {
+                    appendLog('Admin authentication required to reset system.', 'blocked');
+                    toggleAdminAuthModal(() => resetSystem());
+                    return;
+                }
 
                 // 2. Reset circuit breaker
                 await fetch('/api/v1/admin/circuit-breaker/reset', {
                     method: 'POST',
-                    headers: { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ service_name: 'upstream' })
                 });
 
                 // 3. Reset load balancer telemetry
-                await fetch('/api/v1/admin/load-balancer/reset', {
-                    method: 'POST',
-                    headers: { 'X-Admin-Key': ADMIN_KEY }
-                });
+                await fetch('/api/v1/admin/load-balancer/reset', { method: 'POST' });
 
                 appendLog(`System State Fully Reset to Fresh Baseline.`, 'admin');
             } catch (e) {
@@ -696,6 +870,7 @@
             setTimeout(fetchAndUpdate, 300);
         }
 
+        checkAdminAuthStatus();
         fetchAndUpdate();
         setInterval(fetchAndUpdate, 1000);
     </script>
