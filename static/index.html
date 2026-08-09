@@ -417,6 +417,7 @@
             <button class="btn" onclick="sendBurst(1)">+1 Request</button>
             <button class="btn" onclick="sendBurst(10)">+10 Burst</button>
             <button class="btn danger" onclick="triggerRateLimit()">Trigger 429 Limit</button>
+            <button class="btn danger" onclick="triggerCircuitTrip()">Trip Circuit (500 Error)</button>
             <button class="btn" onclick="resetSystem()">Reset System</button>
         </div>
     </header>
@@ -835,6 +836,23 @@
                 });
             }
             setTimeout(fetchAndUpdate, 500);
+        }
+
+        async function triggerCircuitTrip() {
+            appendLog('Simulating upstream server outage (5 consecutive HTTP 500 errors)...', 'blocked');
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const res = await fetch('/api/v1/fault/500', { headers: { 'X-API-Key': 'free-key-abc123' } });
+                    if (res.status === 500) {
+                        appendLog(`[UPSTREAM ERROR] HTTP 500 failure recorded (${i + 1}/5)`, 'blocked');
+                    } else if (res.status === 503) {
+                        appendLog(`[CIRCUIT TRIPPED] HTTP 503 Service Unavailable - Circuit Breaker is now OPEN!`, 'blocked');
+                    }
+                } catch (e) {
+                    appendLog(`Network error: ${e.message}`, 'blocked');
+                }
+            }
+            setTimeout(fetchAndUpdate, 300);
         }
 
         async function resetSystem() {

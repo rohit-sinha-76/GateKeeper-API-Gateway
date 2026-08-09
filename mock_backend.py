@@ -38,7 +38,13 @@ def create_app(node_id: str, port: int) -> FastAPI:
             {"id": 2, "name": "Gadget X", "price": 49.99, "node": node_id},
         ]
 
+    @app.get("/api/v1/fault/500")
+    async def simulate_500():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Simulated 500 server outage on {node_id}")
+
     return app
+
 
 
 # Default node apps for programmatic access
