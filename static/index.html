@@ -863,11 +863,18 @@
                 // 3. Reset load balancer telemetry
                 await fetch('/api/v1/admin/load-balancer/reset', { method: 'POST' });
 
+                lastTotalHits = 0;
+                lastTotalBlocks = 0;
+                hitsHistory.length = 0;
+                blocksHistory.length = 0;
+                labels.length = 0;
+                lineChart.update();
+
                 appendLog(`System State Fully Reset to Fresh Baseline.`, 'admin');
             } catch (e) {
                 appendLog(`Admin reset error: ${e.message}`, 'blocked');
             }
-            setTimeout(fetchAndUpdate, 300);
+            setTimeout(fetchAndUpdate, 200);
         }
 
         checkAdminAuthStatus();

@@ -105,6 +105,7 @@ async def reset_rate_limit(
         keys = await redis.keys("rate_limit:*")
         if keys:
             deleted_count = await redis.delete(*keys)
+        await redis.set("global_hits", 0)
         await redis.set("global_blocks", 0)
     else:
         keys = await redis.keys(f"rate_limit:*:{target}*")
