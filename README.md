@@ -103,11 +103,11 @@ Administrators can adjust the active pool count (1–4) and routing algorithm at
 
 Rate limiting is enforced on a per-tier basis before requests reach the load balancer or upstream servers:
 
-| Tier | Request Limit | Window | Identification Format |
+| Tier | Request Limit | Window | Identification Key Format |
 |---|---|---|---|
-| `free` | 60 req/min | 60 seconds | `rate_limit:free:<identifier>` |
-| `premium` | 600 req/min | 60 seconds | `rate_limit:premium:<identifier>` |
-| `internal` | 6,000 req/min | 60 seconds | `rate_limit:internal:<identifier>` |
+| `free` | 60 req/min | 60 seconds | `rate_limit:free:<client_ip>:<api_key>` |
+| `premium` | 600 req/min | 60 seconds | `rate_limit:premium:<client_ip>:<api_key>` |
+| `internal` | 6,000 req/min | 60 seconds | `rate_limit:internal:<client_ip>:<api_key>` |
 
 ### Atomic Lua Execution
 
@@ -194,14 +194,19 @@ py -3.10 -m pytest -v
 $env:USE_REAL_REDIS="1"; py -3.10 -m pytest -v
 ```
 
-### Test Coverage Summary
-
+### Test Coverage Summary (13 Test Suites)
 - **Authentication (`test_auth.py`):** Missing key rejection (401), invalid key rejection (401), tier identification (`free`, `premium`).
 - **Admin Security (`test_admin.py`):** Unauthenticated rejection (403), invalid token rejection (403), rate limit reset, circuit reset, session login/logout lifecycle, and static asset secret scanning.
 - **Circuit Breaker (`test_circuit_breaker.py`):** State transitions (`CLOSED` $\to$ `OPEN` $\to$ `HALF_OPEN` $\to$ `CLOSED`), failure threshold tripping, canary failure re-tripping, and 500 error classification.
 - **Concurrency & Atomicity (`test_concurrency.py`):** Concurrent rate-limiting atomicity and race-free circuit tripping under parallel load.
+- **Exceptions (`test_exceptions.py`):** Gateway exception response serialization and JSON formatting.
+- **Health (`test_health.py`):** System health check endpoint status and version payload.
 - **Load Balancing (`test_load_balancer.py`):** Sequential Round Robin cycling, Least Connections minimum-load routing, IP Hash determinism, Random uniform distribution, dynamic scaling ($1 \to 4 \to 2 \to 3$), in-flight request accounting, telemetry resets, and scale-down mid-flight safety.
+- **Logging (`test_logger.py`):** Structured JSON log formatter output and logger singleton integrity.
+- **Middleware (`test_middleware.py`):** Request correlation ID (`X-Request-ID`) and process duration (`X-Process-Time`) header propagation.
+- **Monitoring (`test_monitor.py`):** Static dashboard HTML delivery and `/api/stats` cluster telemetry API.
 - **Proxy Forwarding (`test_proxy.py`):** GET/POST payload preservation, hop-by-hop header stripping, gateway timeout handling (504), and connection error handling (502).
+- **Rate Limiting (`test_rate_limit.py`):** Tiered Lua rate limit counter decrements, quota block enforcement (429), and IP whitelist bypass.
 - **Resilience (`test_resilience.py`):** Fail-open rate limiting and circuit breaking during simulated Redis outages.
 
 ---
@@ -298,6 +303,7 @@ All settings can be configured via `.env` or system environment variables:
 | `API_KEY_HEADER_NAME` | `str` | `X-API-Key` | Header name for client API key |
 | `ADMIN_API_KEY_HEADER_NAME` | `str` | `X-Admin-Key` | Header name for administrator authentication |
 | `RATE_LIMIT_WINDOW_SECONDS` | `int` | `60` | Rolling rate limit window duration in seconds |
+| `UPSTREAM_URL` | `str` | `http://127.0.0.1:8001` | Default downstream upstream URL |
 | `UPSTREAM_SERVER_1_URL` | `str` | `http://127.0.0.1:8001` | Target URL for Upstream Node 1 |
 | `UPSTREAM_SERVER_2_URL` | `str` | `http://127.0.0.1:8002` | Target URL for Upstream Node 2 |
 | `UPSTREAM_SERVER_3_URL` | `str` | `http://127.0.0.1:8003` | Target URL for Upstream Node 3 |
@@ -353,12 +359,15 @@ GateKeeper-API-Gateway/
 │   ├── test_proxy.py          # Reverse proxy forwarding, timeout, and error tests
 │   ├── test_rate_limit.py     # Tiered Lua rate limit tests
 │   └── test_resilience.py     # Redis outage fail-open resilience tests
+├── utils/
+│   └── logger.py              # Structured JSON logging with contextual extra fields
 ├── .github/workflows/
 │   └── ci.yml                 # GitHub Actions CI workflow with Redis 7 service container
 ├── .env.example               # Configuration template with safe placeholders
 ├── .gitignore                 # Version control exclusions
 ├── docker-compose.yml         # Multi-node compose topology
 ├── Dockerfile                 # Multi-stage unprivileged non-root container build
+├── LICENSE                    # MIT License
 ├── Makefile                   # Developer task automation
 ├── pytest.ini                 # Pytest configuration
 └── requirements.txt           # Application dependencies
