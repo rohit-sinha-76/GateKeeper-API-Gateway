@@ -1,26 +1,20 @@
-.PHONY: run run-backend test test-real-redis docker-build docker-up docker-down clean
+.PHONY: run test docker-build
 
 run:
-	uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-run-backend:
-	python mock_backend.py
-
-test:
-	pytest -v
-
-test-real-redis:
-	USE_REAL_REDIS=1 pytest -v
-
-docker-build:
-	docker build -t gatekeeper-api-gateway:latest .
-
-docker-up:
+	@echo "Starting GateKeeper API Gateway, Redis, and Mock Backends with Docker Compose..."
 	docker compose up --build
 
-docker-down:
-	docker compose down
+test:
+	@echo "Installing Python dependencies..."
+	python -m pip install --upgrade pip
+	pip install -r requirements.txt
+	@echo "Ensuring Redis service is up for integration tests..."
+	docker compose up -d redis
+	@echo "Running Pytest suite with real Redis..."
+	PYTHONPATH=. REDIS_URL=redis://localhost:6379/0 USE_REAL_REDIS=1 python -m pytest -v
+	@echo "Stopping Redis service..."
+	docker compose stop redis
 
-clean:
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+docker-build:
+	@echo "Building Docker images for GateKeeper and Mock Backends..."
+	docker compose build
