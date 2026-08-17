@@ -70,4 +70,3 @@ app.include_router(monitor_router)
 app.include_router(admin_auth_router)
 app.include_router(admin_router)
 app.include_router(proxy_router)
-
