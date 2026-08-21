@@ -1,8 +1,3 @@
-"""
-Multi-server upstream backend simulator for GateKeeper API Gateway.
-Runs 4 independently addressable backend nodes on ports 8001, 8002, 8003, and 8004.
-Each node returns real payloads tagged with X-Backend-Node and X-Backend-Port headers.
-"""
 import sys
 import argparse
 import asyncio
