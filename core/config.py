@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     # Redis Configuration
     REDIS_URL: str = "redis://127.0.0.1:6379/0"
     REDIS_SOCKET_TIMEOUT: float = 0.25
-
     REDIS_CONNECT_TIMEOUT: float = 0.25
 
     # Security & Authentication
