@@ -47,10 +47,8 @@ class JSONFormatter(logging.Formatter):
             if key not in standard_record_attrs and not key.startswith("_"):
                 log_data[key] = value
 
-        # Explicitly add request_id if it exists on the record, after other extra attributes
-        # This ensures it's always at the top level of the JSON output.
-        if hasattr(record, "request_id"):
-            log_data["request_id"] = record.request_id
+        # Ensure request_id is always present, defaulting to None if not set on the record
+        log_data["request_id"] = getattr(record, "request_id", None)
 
         return json.dumps(log_data)
 
