@@ -24,6 +24,9 @@ def create_app(node_id: str, port: int) -> FastAPI:
         return [
             {"id": 1, "name": "Alice", "email": "alice@example.com", "node": node_id},
             {"id": 2, "name": "Bob", "email": "bob@example.com", "node": node_id},
+            {"id": 3, "name": "Charlie", "email": "charlie@example.com", "node": node_id},
+            {"id": 4, "name": "Diana", "email": "diana@example.com", "node": node_id},
+            {"id": 5, "name": "Eve", "email": "eve@example.com", "node": node_id},
         ]
 
     @app.get("/api/v1/products")
