@@ -34,7 +34,6 @@ HOP_BY_HOP_HEADERS = {
 }
 
 
-
 def get_http_client() -> httpx.AsyncClient:
     """Return the shared pooled HTTP client instance."""
     global _http_client
@@ -174,5 +173,3 @@ async def forward_request(request: Request) -> Response:
             is_timeout=is_timeout,
             is_connect_error=is_connect_error,
         )
-
-
