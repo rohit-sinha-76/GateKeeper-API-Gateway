@@ -1,30 +1,17 @@
-.PHONY: run test docker-build clean
+.PHONY: run test docker-build help
 
-run:
-	@echo "Starting GateKeeper API Gateway, Redis, and Mock Backends via Docker Compose..."
+run: ## Start all services using Docker Compose (foreground)
+	@echo "Starting GateKeeper API Gateway services..."
 	docker compose up --build
+	@echo "Services stopped."
 
-test:
-	@echo "Ensuring Python dependencies are installed..."
-	pip install -r requirements.txt
-	@echo "Starting Redis for integration tests..."
-	docker compose up -d redis
-	@echo "Running integration tests with real Redis..."
-	USE_REAL_REDIS=1 REDIS_URL=redis://localhost:6379/0 PYTHONPATH=. python -m pytest -v
-	@echo "Stopping Redis container..."
-	docker compose down redis
+test: ## Run unit tests (uses in-memory fakeredis)
+	@echo "Running unit tests..."
+	PYTHONPATH=. python -m pytest -v
 
-docker-build:
-	@echo "Building Docker images for GateKeeper and Mock Backends..."
+docker-build: ## Build Docker images for all services
+	@echo "Building Docker images..."
 	docker compose build
 
-clean:
-	@echo "Stopping and removing all Docker Compose services and volumes..."
-	docker compose down -v --rmi all
-	@echo "Removing Python virtual environment..."
-	rm -rf venv
-	@echo "Cleaning Python build artifacts..."
-	find . -type f -name "*.py[co]" -delete
-	find . -type d -name "__pycache__" -delete
-	rm -rf .pytest_cache
-	@echo "Cleanup complete."
+help: ## Display this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-25s\033[0m %s\n", $$1, $$2}'
