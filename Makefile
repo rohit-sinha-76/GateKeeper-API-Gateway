@@ -1,17 +1,24 @@
-.PHONY: run test docker-build help
+.PHONY: run test docker-build
 
-run: ## Start all services using Docker Compose (foreground)
-	@echo "Starting GateKeeper API Gateway services..."
+# Default target when `make` is run without arguments
+all: run
+
+# Bring up the entire GateKeeper API Gateway system using Docker Compose.
+# This includes the gateway, Redis, and all mock backend services.
+# The --build flag ensures images are rebuilt if sources have changed.
+run:
+	@echo "🚀 Starting GateKeeper API Gateway with Docker Compose..."
 	docker compose up --build
-	@echo "Services stopped."
 
-test: ## Run unit tests (uses in-memory fakeredis)
-	@echo "Running unit tests..."
+# Run the automated test suite.
+# By default, tests use in-memory fakeredis with Lua engine for speed.
+# To run integration tests against a real Redis instance, use `USE_REAL_REDIS=1 make test`.
+test:
+	@echo "🧪 Running test suite..."
 	PYTHONPATH=. python -m pytest -v
 
-docker-build: ## Build Docker images for all services
-	@echo "Building Docker images..."
+# Build Docker images for all services defined in docker-compose.yml.
+# This command only builds images and does not start any containers.
+docker-build:
+	@echo "🐳 Building Docker images for GateKeeper services..."
 	docker compose build
-
-help: ## Display this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-25s\033[0m %s\n", $$1, $$2}'
