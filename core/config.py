@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     }
 
     # Gateway / HTTP Connection Pool Settings
-    GATEWAY_TIMEOUT_SECONDS: float = 5.0 # Changed from 10.0 to 5.0
+    GATEWAY_TIMEOUT_SECONDS: float = 5.0
     UPSTREAM_URL: str = "http://localhost:8001"
     UPSTREAM_SERVER_1_URL: str = "http://127.0.0.1:8001"
     UPSTREAM_SERVER_2_URL: str = "http://127.0.0.1:8002"
