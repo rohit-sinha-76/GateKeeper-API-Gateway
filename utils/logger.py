@@ -41,10 +41,11 @@ class JSONFormatter(logging.Formatter):
             "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
             "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
             "created", "msecs", "relativeCreated", "thread", "threadName",
-            "processName", "process", "request_id" # Add request_id here to prevent it from being picked up twice if set explicitly
+            "processName", "process", # Standard attributes
+            "request_id" # Custom attribute set by RequestIDFilter or manually
         }
         for key, value in record.__dict__.items():
-            if key not in standard_record_attrs and not key.startswith("_"):
+            if key not in standard_record_attrs and not key.startswith("_") and not callable(value):
                 log_data[key] = value
 
         # Ensure request_id is always present, defaulting to None if not set on the record
