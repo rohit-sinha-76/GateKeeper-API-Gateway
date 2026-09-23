@@ -12,13 +12,7 @@ from core.config import settings
 request_id_ctx_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
 
 
-class RequestIDFilter(logging.Filter):
-    """A logging filter to inject the request_id from a ContextVar into LogRecord."""
-    def filter(self, record: logging.LogRecord) -> bool:
-        request_id = request_id_ctx_var.get()
-        if request_id:
-            record.request_id = request_id  # Attach request_id to the log record
-        return True
+# Removed RequestIDFilter as its logic is now handled by JSONFormatter directly
 
 
 class JSONFormatter(logging.Formatter):
@@ -36,20 +30,32 @@ class JSONFormatter(logging.Formatter):
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
 
-        # Extract any extra fields provided during logging or by filters (like request_id)
+        # --- BEGIN: Specific handling for request_id ---
+        # Prioritize request_id from context variable
+        request_id_from_ctx = request_id_ctx_var.get()
+        if request_id_from_ctx:
+            log_data["request_id"] = request_id_from_ctx
+        # Fallback: check if request_id was passed via `extra` or manually set on the record
+        elif hasattr(record, "request_id") and record.request_id is not None:
+            log_data["request_id"] = record.request_id
+        else:
+            log_data["request_id"] = None # Ensure it's explicitly None if not found
+        # --- END: Specific handling for request_id ---
+
+
+        # Extract any other custom extra fields provided during logging
+        # `request_id` is now explicitly handled, so ensure it's listed in standard_record_attrs
+        # so it's not duplicated if present in record.__dict__ (e.g., from `extra`)
         standard_record_attrs = {
             "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
             "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
             "created", "msecs", "relativeCreated", "thread", "threadName",
-            "processName", "process", # Standard attributes
-            "request_id" # Custom attribute set by RequestIDFilter or manually
+            "processName", "process",
+            "request_id" # Explicitly list request_id to prevent it being added again from record.__dict__
         }
         for key, value in record.__dict__.items():
             if key not in standard_record_attrs and not key.startswith("_") and not callable(value):
                 log_data[key] = value
-
-        # Ensure request_id is always present, defaulting to None if not set on the record
-        log_data["request_id"] = getattr(record, "request_id", None)
 
         return json.dumps(log_data)
 
@@ -63,9 +69,7 @@ def get_logger(name: str) -> logging.Logger:
 
     # Prevent duplicate handlers if logger is fetched multiple times
     if not logger.handlers:
-        # Add the RequestIDFilter to the logger
-        logger.addFilter(RequestIDFilter())
-
+        # Removed RequestIDFilter as its functionality is now handled by JSONFormatter directly
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(JSONFormatter())
         logger.addHandler(handler)
